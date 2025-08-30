@@ -46,11 +46,13 @@ abstract class FlowableFluid(defaultBlock: Block, bucket: Material) : Fluid(defa
         val updatedDownFluid = getUpdatedState(instance, down, downBlock)
         if (canFlow(instance, point, block, Direction.DOWN, down, downBlock, updatedDownFluid)) {
             flow(instance, down, downBlock, Direction.DOWN, updatedDownFluid)
-            if (getAdjacentSourceCount(instance, point) >= 3) {
+            if (isSource(block) || getAdjacentSourceCount(instance, point) >= 3) {
                 flowSides(instance, point, block)
             }
         } else if (isSource(block) || !canFlowDown(instance, updatedDownFluid, point, block, down, downBlock)) {
             flowSides(instance, point, block)
+        } else {
+            fluid.handleInteractionWithFluid(instance, point, down, Direction.DOWN)
         }
     }
 
@@ -74,8 +76,23 @@ abstract class FlowableFluid(defaultBlock: Block, bucket: Material) : Fluid(defa
                 direction.normalZ().toDouble()
             )
             val currentBlock = instance.getBlock(offset)
-            if (!canFlow(instance, point, block, direction, offset, currentBlock, newBlock)) continue
+            if (!canFlow(instance, point, block, direction, offset, currentBlock, newBlock))
+                continue
             flow(instance, offset, currentBlock, direction, newBlock)
+
+            for (interactionDirection in Direction.HORIZONTAL) {
+                if (interactionDirection == direction.opposite())
+                    continue
+
+                val interactionOffset = offset.add(interactionDirection.vec())
+                val interactionBlock = instance.getBlock(interactionOffset)
+
+                if (MinestomFluids.getFluidOnBlock(interactionBlock) != MinestomFluids.EMPTY) {
+                    val otherFluid = MinestomFluids.getFluidInstanceOnBlock(interactionBlock)
+                    handleInteractionWithFluid(instance, offset, interactionOffset, direction)
+                    otherFluid.handleInteractionWithFluid(instance, interactionOffset, offset, direction)
+                }
+            }
         }
     }
 
